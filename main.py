@@ -1,8 +1,6 @@
 from flask import Flask, request, render_template, jsonify
 import sqlite3
 import ollama
-import pyttsx3
-import base64
 import logging
 
 from flask_cors import CORS  # ✅ Allows frontend to talk to backend
@@ -39,45 +37,20 @@ def init_db():
 
         conn.commit()
 
-def get_voice_options():
-    """Retrieve available voices from pyttsx3"""
-    engine = pyttsx3.init()
-    voices = engine.getProperty('voices')
-    return [{'id': i, 'name': voice.name} for i, voice in enumerate(voices)]
-
 @app.route('/')
 def index():
     """Render the HTML page"""
-    voices = get_voice_options()
-    return render_template('main1.1.html', voices=voices)
+    return render_template('main1.1.html')
 
 @app.route('/chat', methods=['POST'])
 def chat():
     """Handle chat messages"""
     try:
         user_input = request.json.get('content', '')
-        selected_voice = int(request.json.get('voice', 0))
-        speech_rate = int(request.json.get('rate', 150))
-        speech_volume = float(request.json.get('volume', 1.0))
-
+        
         # Query Ollama API
         response = ollama.chat(model='gemma2:2b', messages=[{'role': 'user', 'content': user_input}])
         message_content = response['message']['content']
-
-        # Convert text to speech
-        engine = pyttsx3.init()
-        voices = engine.getProperty('voices')
-        engine.setProperty('voice', voices[selected_voice].id)
-        engine.setProperty('rate', speech_rate)
-        engine.setProperty('volume', speech_volume)
-
-        engine.save_to_file(message_content, "temp.wav")
-        engine.runAndWait()
-
-        with open("temp.wav", "rb") as audio_file:
-            audio_data = audio_file.read()
-
-        audio_b64 = base64.b64encode(audio_data).decode('utf-8')
 
         # Store in database
         with sqlite3.connect(DATABASE) as conn:
@@ -86,7 +59,7 @@ def chat():
                            (user_input, message_content))
             conn.commit()
 
-        return jsonify({"message": message_content, "audio": audio_b64})
+        return jsonify({"message": message_content})
 
     except Exception as e:
         logging.error(f"Chat error: {str(e)}")
